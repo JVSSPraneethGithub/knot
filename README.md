@@ -11,7 +11,7 @@ Concise reactive state container library for Android applications.
 
 Knot helps managing application state by reacting on events and performing asynchronous actions in a structured way. There are five core concepts Knot defines: `State`, `Change`, `Action`, `Reducer` and `Effect`.
 
-<img src="docs/diagrams/flowchart-knot.png" height="480" />
+<img src="docs/diagrams/flowchart-knot.png" width="625" />
 
 `State` represents an immutable state of an application. It can be a state of a screen or a state of an internal statefull headless component.
 
@@ -24,13 +24,6 @@ Knot helps managing application state by reacting on events and performing async
 `Effect` is a convenient wrapper class containing the new `State` and an optional `Action`. If `Action` is present, Knot will perform it and provide resulting `Change` (if any) back to the `Reducer`.
 
 In addition to that each Knot can subscribe to `Events` coming from external sources and turn them into `Changes` for further processing.
-
-# Main features
-
-- **Clean DSL**. Knot provides a concise and easy to read DLS for declaring state container logic.
-- **Actions as side-effects**. Common unanswered question of many state containers is how to handle side-effects in reducer, when the state does not reflect the change but the app, for instance, has to show a message to the user instead. Knot answers this by allowing to issue an `Action` from the reducer, which then can be processed outside. This keeps reducer a pure function and provides a structured way of handling side-effects.
-- **Sources for external events**. Knot can mix external events like user location updates, database triggers, network state updates etc. into the loop by design. All events go through the reducer first, to be processed in accordance with the current state. Thus, the state handling is well synchronized and is localized at a single place - in the reducer.
-- **Composition**. Knot offers a convenient and a structured way of splitting once big redicer into multiple smaller reducers when the code becomes complex.
 
 # Getting Started
 
@@ -96,29 +89,31 @@ states.assertValues(
 
 Notice how inside the `reduce` function a new `State` can be combined with an `Action` using `+` operator. If only the `State` value should be returned from the reducer, the `.only` suffix is added to the `State`.
 
-# Documentation
-1. [Knot Sample App](https://github.com/beworker/knot/tree/master/knot3-android-sample/src/main/kotlin/de/halfbit/knot3/sample) the first place to look.
-2. [Terminal events in Actions section](https://github.com/beworker/knot/wiki/Terminal-events-in-Actions-section)
-3. [Composite ViewModel](https://www.halfbit.de/posts/composite-viewmodel/)
-4. [Troubleshooting](https://github.com/beworker/knot/wiki/Troubleshooting)
-
-# Other examples
-- [Co2Monitor sample app](https://github.com/beworker/co2monitor/blob/master/android-client/main-dashboard/src/main/java/de/halfbit/co2monitor/main/dashboard/DashboardViewModel.kt)
-
 # Composition
 
-If your knot becomes complex and you want to improve its readability and maintainability, you may consider to write a composite knot. You start composition by grouping related functionality into, in a certain sense, indecomposable pieces called `Primes`. 
+If your knot becomes complex and you want to improve its readability and maintainability, you may consider to write a composite knot. You start composition by grouping related functionality into, in a certain sense, indecomposable pieces called `Delegates`. 
 
 <img src="docs/diagrams/flowchart-composite-knot.png" width="625" />
 
-Each `Prime` is isolated from the other `Primes`. It defines its own set of `Changes`, `Actions` and `Reducers`. It's only the `State`, what is shared between the `Primes`. In that respect each `Prime` can be seen as a separate `Knot` working on a shared `State`. Once all `Primes` are defined, they can be composed together and provided to `CompositeKnot` which implements standard `Knot` interface. For more information check out [PrimeTest](https://github.com/beworker/knot/blob/master/knot3/src/test/kotlin/de/halfbit/knot3/PrimeTest.kt) class.
+Each `Delegate` is isolated from the other `Delegates`. It defines its own set of `Changes`, `Actions` and `Reducers`. It's only the `State`, what is shared between the `Delegates`. In that respect each `Delegate` can be seen as a separate `Knot` working on a shared `State`. Once all `Delegates` are defined, they can be composed together and provided to `CompositeKnot` which implements standard `Knot` interface. For more information check out [Composite ViewModel](https://www.halfbit.de/posts/composite-viewmodel/) post.
+
+# Documentation
+1. [Knot Sample App](https://github.com/beworker/knot/tree/master/knot3-android-sample/src/main/kotlin/de/halfbit/knot3/sample) is the first place to look at.
+2. [Async Actions](https://www.halfbit.de/posts/async-actions-in-knot/) to learn how to perform and cancel asynchronous actions.
+3. [External Events](https://www.halfbit.de/posts/external-events-in-knot/) to learn how to observe and handle external events.
+4. [Terminal events in Actions section](https://github.com/beworker/knot/wiki/Terminal-events-in-Actions-section)
+5. [Composite ViewModel](https://www.halfbit.de/posts/composite-viewmodel/) to learn more about composition.
+6. [Troubleshooting](https://github.com/beworker/knot/wiki/Troubleshooting)
+
+# Other examples
+- [Co2Monitor sample app](https://github.com/beworker/co2monitor/blob/master/android-client/main-dashboard/src/main/java/de/halfbit/co2monitor/main/dashboard/DashboardViewModel.kt)
 
 # Why Knot?
 
 * Predictable - state is the single source of truth.
 * Side-effect free reducer - by design.
 * Scalable - single knots can be combined together to build more complex application logic.
-* Decomposable - complex knots can be decomposed into primes by related functionality.
+* Composable - complex knots can be composed out of delegates grouped by related functionality.
 * Structured - easy to read and write DSL for writing better structured and less buggy code.
 * Concise - it has minimalistic API and compact implementation.
 * Testable - reducers and transformers are easy to test.

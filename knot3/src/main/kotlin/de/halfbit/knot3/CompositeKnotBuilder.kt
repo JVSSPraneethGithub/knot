@@ -106,9 +106,9 @@ internal constructor() {
     }
 }
 
-/** A configuration builder for a `Prime`. */
+/** A configuration builder for a `Delegate`. */
 @KnotDsl
-class PrimeBuilder<State : Any, Change : Any, Action : Any>
+class DelegateBuilder<State : Any, Change : Any, Action : Any>
 internal constructor(
     private val reducers: MutableMap<KClass<out Change>, Reducer<State, Change, Action>>,
     private val eventSources: MutableList<EventSource<Change>>,
@@ -234,6 +234,118 @@ internal constructor(
 
         /** Throws [IllegalStateException] with current [State] and given [Change] in its message. */
         fun State.unexpected(change: Change): Nothing = error("Unexpected $change in $this")
+
+        /**
+         * Executes given block if the knot is in the given state or
+         * ignores the change in any other states.
+         *
+         * ```
+         * reduce<Change> {
+         *    whenState<State.Content> {
+         *       ...
+         *    }
+         * }
+         * ```
+         * is a better readable alternative to
+         * ```
+         * reduce<Change> {
+         *    when(this) {
+         *       is State.Content -> ...
+         *       else -> only
+         *    }
+         * }
+         * ```
+         */
+        inline fun <reified WhenState : State> State.whenState(
+            block: WhenState.() -> Effect<State, Action>
+        ): Effect<State, Action> =
+            if (this is WhenState) block()
+            else Effect.WithAction(this, null)
+
+        /**
+         * Executes given block if the knot is in the given state or
+         * throws [IllegalStateException] for the change in any other state.
+         *
+         * ```
+         * reduce<Change> { change ->
+         *    requireState<State.Content>(change) {
+         *       ...
+         *    }
+         * }
+         * ```
+         * is a better readable alternative to
+         * ```
+         * reduce<Change> { change ->
+         *    when(this) {
+         *       is State.Content -> ...
+         *       else -> unexpected(change)
+         *    }
+         * }
+         * ```
+         */
+        inline fun <reified WhenState : State> State.requireState(
+            change: Change, block: WhenState.() -> Effect<State, Action>
+        ): Effect<State, Action> =
+            if (this is WhenState) block()
+            else unexpected(change)
+
+        /**
+         * Dispatches partial state to each partial reducer in the collection.
+         *
+         * @param state is the initial partial state.
+         * @param block declares the actual call to the partial reducer.
+         * @return the effect with the final state and the list of actions to perform.
+         *
+         * ```
+         * reduce<Change.Ignite> {
+         *    partialReducers.dispatch(this) { reducer, partialState ->
+         *       reducer.onStateChanged(partialState)
+         *    }
+         * }
+         * See [Partial] for more details.
+         */
+        inline fun <State : Any, Action : Any, Reducer : Partial<State, Action>> Collection<Reducer>.dispatch(
+            state: State, block: (reducer: Reducer, partialState: State) -> Effect<State, Action>
+        ): Effect<State, Action> {
+            val actions = mutableListOf<Action>()
+            val newState = fold(state) { partialState, reducer ->
+                when (val effect = block(reducer, partialState)) {
+                    is Effect.WithAction -> {
+                        effect.action?.let { actions += it }
+                        effect.state
+                    }
+                    is Effect.WithActions -> {
+                        actions += effect.actions
+                        effect.state
+                    }
+                }
+            }
+            return if (actions.isEmpty()) Effect.WithAction(newState)
+            else Effect.WithActions(newState, actions)
+        }
+
+        /**
+         * Dispatches partial state to each partial reducer in the collection.
+         *
+         * @param state is the initial partial state.
+         * @param block declares the actual call to the partial reducer.
+         * @return the final state.
+         *
+         * ```
+         * reduce<Change.Ignite> {
+         *    partialReducers.dispatchStateOnly(this) { reducer, partialState ->
+         *       reducer.onStateChanged(partialState)
+         *    }.only
+         * }
+         * ```
+         * See `PartialStateOnlyTest` for more details.
+         */
+        inline fun <State : Any, Reducer : Any> Collection<Reducer>.dispatchStateOnly(
+            state: State, block: (reducer: Reducer, partialState: State) -> State
+        ): State =
+            fold(state) { partialState, reducer ->
+                block(reducer, partialState)
+            }
     }
 }
 
@@ -248,4 +360,28 @@ internal class TypedInterceptor<Type : Any, T : Type>(
                 if (type.isInstance(change)) interceptor.invoke(it) else it
             }
         }
+}
+
+/**
+ * Marker interface for partial reducers. Partial reducer is used when multiple delegates
+ * need to participate in handling of a single change.
+ *
+ * For example, you have a delegate responsible for handling a large data structure coming
+ * from a backend. Each delegate should be able to use that structure for updating the part
+ * of the shared state, related to each delegate's concern only. Partial delegation can be
+ * implemented as follows:
+ * - Create a delegate responsible for handling the structure in the first place.
+ * - Declare a partial reducer interface to that delegate.
+ * - Let other delegates involved in the handling implement the partial reducer interface.
+ * - Collect all partial reducers in the main delegate and dispatch the state and the
+ * structure though out all collected partial reducers.
+ *
+ * See `PartialStateWithActionsTest` to see the partial reducers in action.
+ */
+interface Partial<State : Any, Action : Any> {
+    val State.only: Effect<State, Action>
+        get() = Effect.WithAction(this)
+
+    operator fun State.plus(action: Action?): Effect<State, Action> =
+        Effect.WithAction(this, action)
 }
